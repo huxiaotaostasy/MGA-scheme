@@ -49,7 +49,7 @@ class MPModule(nn.Module):
         spa_mask_1 = F.pad(spa_mask, ((self.k1 - 1) // 2,) * 4)
         spa_mask_1 = F.unfold(spa_mask_1, (self.k1, self.k1)).reshape(B, 1, self.k1 * self.k1, H // self.size,
                                                                       W // self.size).contiguous()
-        print(spa_mask_1.shape, spa_kernel.shape)
+        # print(spa_mask_1.shape, spa_kernel.shape)
         final_mask = (spa_kernel * spa_mask_1).sum(dim=2)
         ref = self.select_refinement_regions(final_mask).squeeze(dim=1)
         idx = torch.nonzero(ref, as_tuple=False)
