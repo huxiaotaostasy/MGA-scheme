@@ -3,7 +3,7 @@ import torch
 from torch.nn import functional as F
 
 class MPModule(nn.Module):
-    def __init__(self, nf=50, padding=1, size=4):
+    def __init__(self, k=240,nf=50, padding=1, size=4):
         super(MPModule, self).__init__()
         self.k1 = 5
         self.spa_mask_1 = nn.Sequential(nn.Conv2d(nf, nf, 3, 1, 1), nn.ReLU(True), nn.Conv2d(nf, 2, 3, 1, 1))
@@ -11,6 +11,7 @@ class MPModule(nn.Module):
         self.padding = padding
         self.size = size
         self.t = 1
+        self.k = k
         # activation function
         self.lrelu = nn.LeakyReLU(negative_slope=0.1, inplace=True)
 
@@ -25,7 +26,7 @@ class MPModule(nn.Module):
     def select_refinement_regions(self, mask: torch.Tensor):
         b, c, h, w = mask.shape
         err = mask.view(b, -1)
-        idx = err.topk(240, dim=1, sorted=False).indices
+        idx = err.topk(self.k, dim=1, sorted=False).indices
         # idx = err.topk(1000, dim=1, sorted=False).indices #240 for BSDS100 Set5 Set14, 1000 for Urban100 Manga109
         ref = torch.zeros_like(err)
         ref.scatter_(1, idx, 1.)

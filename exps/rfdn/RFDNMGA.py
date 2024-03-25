@@ -2,8 +2,40 @@ from torch import nn
 import torch
 from torch.nn import functional as F
 
-import block as B
-from MPModule import MPModule
+import exps.rfdn.block as B
+from exps.MPModule import MPModule
+
+class generate_mask_all_patches(nn.Module):
+    def __init__(self, padding=1, size=4):
+        '''
+        nf:num_feature, k:num_point, k1:adaptive_kernel, size:patch_size
+        '''
+        super(generate_mask_all_patches, self).__init__()
+        self.padding=padding
+        self.size=size
+    def crop_patch(self, feature, idx):
+        '''
+        feature:B C Hs Ws
+        idx:P P P(Batch,Hs,Ws)
+        output:
+        patches:P C size size
+        '''
+        feature = F.pad(feature, pad=(self.padding, self.padding, self.padding, self.padding))
+        feature = feature.permute(0, 2, 3, 1).unfold(1, self.size+2*self.padding, self.size).unfold(2, self.size+2*self.padding, self.size).contiguous()  # B Hs Ws C size size
+        return feature[idx[0], idx[1], idx[2]].contiguous()
+    def forward(self, out_lr):
+        '''
+        out_lr:B C H W
+        patches:K C size size
+        '''
+        B, C, H, W = out_lr.shape
+        final_mask = torch.ones(B,1,H//self.size,W//self.size)
+        ref = final_mask.squeeze(dim=1)
+        idx = torch.nonzero(ref, as_tuple=False)
+        idx = idx[:, 0], idx[:, 1], idx[:, 2]  # P Hs Ws
+        patches = self.crop_patch(out_lr, idx)  # P C self.size+2*self.padding self.size+2*self.padding
+        return patches, idx
+    
 class RFDNBase(nn.Module):
     def __init__(self, in_nc=3, nf=48, num_modules=4, out_nc=3, upscale=4, return_mid=False):
         super(RFDNBase, self).__init__()
@@ -65,6 +97,18 @@ class RFDNMGA(nn.Module):
         super(RFDNMGA, self).__init__()
         self.base = RFDNBase(in_nc, nf, num_modules, out_nc, upscale, return_mid=True)
         self.mask = MPModule(nf, padding=padding, size=size)
+        self.refine = RFDNRefine(nf, upscale)
+    def forward(self,input):
+        coarse_img, out_lr = self.base(input)
+        patches, idx, mask = self.mask(out_lr)
+        refine_img = self.refine(coarse_img, patches, idx)
+        return refine_img
+    
+class RFDNAll(nn.Module):
+    def __init__(self, in_nc=3, nf=50, num_modules=4, out_nc=3, upscale=4, padding=1, size=4):
+        super(RFDNAll, self).__init__()
+        self.base = RFDNBase(in_nc, nf, num_modules, out_nc, upscale, return_mid=True)
+        self.mask = generate_mask_all_patches(padding=padding, size=size)
         self.refine = RFDNRefine(nf, upscale)
     def forward(self,input):
         coarse_img, out_lr = self.base(input)
