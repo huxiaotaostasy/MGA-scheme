@@ -12,7 +12,7 @@ import torch.multiprocessing as mp
 import torch.nn.functional as F
 from tensorboardX import SummaryWriter
 
-from exps.demo.config_mask import config
+from config_mask import config
 from utils import common, dataloader, solver, model_opr
 from dataset import get_dataset
 from exps.rfdn.RFDNMGA import RFDNMGA
